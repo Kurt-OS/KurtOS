@@ -11,6 +11,13 @@ static inline void mmio_write32(unsigned long addr, uint32_t value) {
     *((volatile uint32_t*)addr) = value;
 }
 
+static inline void raw_fill32(unsigned long addr, uint32_t value, unsigned long count) {
+    uint32_t *p = (uint32_t*)addr;
+
+    for (unsigned long i = 0; i < count; i++)
+        p[i] = value;
+}
+
 static inline uint8_t raw_read8(unsigned long addr) {
     return *((volatile uint8_t*)addr);
 }

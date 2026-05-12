@@ -14,6 +14,11 @@ class Framebuffer internal constructor(
     val mode: GraphicsMode,
     private val buffer: DmaBuffer,
 ) {
+    private var dirtyMinX: UInt = 0u
+    private var dirtyMinY: UInt = 0u
+    private var dirtyMaxX: UInt = 0u
+    private var dirtyMaxY: UInt = 0u
+
     fun clear(color: UInt) {
         fillRect(0u, 0u, mode.width, mode.height, color)
     }
@@ -21,23 +26,70 @@ class Framebuffer internal constructor(
     fun setPixel(x: UInt, y: UInt, color: UInt) {
         if (x >= mode.width || y >= mode.height) return
         RawMemory.write32(buffer.physicalAddress + y.toULong() * mode.strideBytes.toULong() + x.toULong() * 4UL, color)
+        markDirty(x, y, 1u, 1u)
     }
 
     fun fillRect(x: UInt, y: UInt, width: UInt, height: UInt, color: UInt) {
-        val endX = minOf(mode.width, x + width)
-        val endY = minOf(mode.height, y + height)
+        if (x >= mode.width || y >= mode.height || width == 0u || height == 0u) return
+
+        val endX = clippedEnd(x, width, mode.width)
+        val endY = clippedEnd(y, height, mode.height)
+        val rowPixels = endX - x
         var py = y
         while (py < endY) {
-            var px = x
-            while (px < endX) {
-                setPixel(px, py, color)
-                px++
-            }
+            val address = buffer.physicalAddress + py.toULong() * mode.strideBytes.toULong() + x.toULong() * 4UL
+            RawMemory.fill32(address, color, rowPixels)
             py++
         }
+        markDirty(x, y, rowPixels, endY - y)
     }
 
-    fun present(): Boolean = device.present()
+    fun present(): Boolean {
+        if (!hasDirtyRect()) return true
+
+        val ok = device.present(dirtyMinX, dirtyMinY, dirtyMaxX - dirtyMinX, dirtyMaxY - dirtyMinY)
+        if (ok) clearDirty()
+        return ok
+    }
+
+    fun presentAll(): Boolean {
+        val ok = device.present(0u, 0u, mode.width, mode.height)
+        if (ok) clearDirty()
+        return ok
+    }
+
+    private fun markDirty(x: UInt, y: UInt, width: UInt, height: UInt) {
+        if (width == 0u || height == 0u) return
+
+        val endX = clippedEnd(x, width, mode.width)
+        val endY = clippedEnd(y, height, mode.height)
+        if (!hasDirtyRect()) {
+            dirtyMinX = x
+            dirtyMinY = y
+            dirtyMaxX = endX
+            dirtyMaxY = endY
+            return
+        }
+
+        dirtyMinX = minOf(dirtyMinX, x)
+        dirtyMinY = minOf(dirtyMinY, y)
+        dirtyMaxX = maxOf(dirtyMaxX, endX)
+        dirtyMaxY = maxOf(dirtyMaxY, endY)
+    }
+
+    private fun hasDirtyRect(): Boolean = dirtyMaxX > dirtyMinX && dirtyMaxY > dirtyMinY
+
+    private fun clearDirty() {
+        dirtyMinX = 0u
+        dirtyMinY = 0u
+        dirtyMaxX = 0u
+        dirtyMaxY = 0u
+    }
+
+    private fun clippedEnd(start: UInt, size: UInt, limit: UInt): UInt {
+        val available = limit - start
+        return start + minOf(size, available)
+    }
 }
 
 object GraphicsService {
@@ -63,7 +115,7 @@ object GraphicsService {
 
         device = gpu
         framebuffer = fb
-        lastStatus = "ready ${fb.mode.width}x${fb.mode.height}"
+        lastStatus = "ready ${fb.mode.width}x${fb.mode.height} virtio-gpu 2D"
         return true
     }
 
@@ -117,8 +169,9 @@ internal class VirtioGpuDevice(private val transport: VirtioMmioTransport) {
         return framebuffer
     }
 
-    fun present(): Boolean {
-        return transferToHost2D() && flushResource()
+    fun present(x: UInt, y: UInt, width: UInt, height: UInt): Boolean {
+        if (width == 0u || height == 0u) return true
+        return transferToHost2D(x, y, width, height) && flushResource(x, y, width, height)
     }
 
     private fun queryDisplayMode(): GraphicsMode {
@@ -159,24 +212,24 @@ internal class VirtioGpuDevice(private val transport: VirtioMmioTransport) {
 
     private fun setScanout(): Boolean {
         val request = commandBuffer(CMD_SET_SCANOUT, 48u)
-        writeRect(request, 24u)
+        writeRect(request, 24u, 0u, 0u, mode.width, mode.height)
         request.write32(40u, 0u)
         request.write32(44u, resourceId)
         return submitExpectNoData(request, 48u)
     }
 
-    private fun transferToHost2D(): Boolean {
+    private fun transferToHost2D(x: UInt, y: UInt, width: UInt, height: UInt): Boolean {
         val request = commandBuffer(CMD_TRANSFER_TO_HOST_2D, 56u)
-        writeRect(request, 24u)
+        writeRect(request, 24u, x, y, width, height)
         request.write64(40u, 0UL)
         request.write32(48u, resourceId)
         request.write32(52u, 0u)
         return submitExpectNoData(request, 56u)
     }
 
-    private fun flushResource(): Boolean {
+    private fun flushResource(x: UInt, y: UInt, width: UInt, height: UInt): Boolean {
         val request = commandBuffer(CMD_RESOURCE_FLUSH, 48u)
-        writeRect(request, 24u)
+        writeRect(request, 24u, x, y, width, height)
         request.write32(40u, resourceId)
         request.write32(44u, 0u)
         return submitExpectNoData(request, 48u)
@@ -217,10 +270,10 @@ internal class VirtioGpuDevice(private val transport: VirtioMmioTransport) {
         return request
     }
 
-    private fun writeRect(buffer: DmaBuffer, offset: UInt) {
-        buffer.write32(offset, 0u)
-        buffer.write32(offset + 4u, 0u)
-        buffer.write32(offset + 8u, mode.width)
-        buffer.write32(offset + 12u, mode.height)
+    private fun writeRect(buffer: DmaBuffer, offset: UInt, x: UInt, y: UInt, width: UInt, height: UInt) {
+        buffer.write32(offset, x)
+        buffer.write32(offset + 4u, y)
+        buffer.write32(offset + 8u, width)
+        buffer.write32(offset + 12u, height)
     }
 }

@@ -31,6 +31,10 @@ object RawMemory {
         mmio.mmio_write32(address, value)
     }
 
+    fun fill32(address: ULong, value: UInt, count: UInt) {
+        mmio.raw_fill32(address, value, count.toULong())
+    }
+
     fun write64(address: ULong, value: ULong) {
         raw_write64(address, value)
     }

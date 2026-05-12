@@ -1,0 +1,74 @@
+int pthread_mutex_init(void *m, const void *attr): return0
+int pthread_mutex_lock(void *m): return0
+int pthread_mutex_trylock(void *m): return0
+int pthread_mutex_unlock(void *m): return0
+int pthread_mutex_destroy(void *m): return0
+unsigned long pthread_self(void): return1
+
+# Single-core kernel contract
+int pthread_create(void *tid, const void *attr, void *(*start)(void *), void *arg): return_eagain
+void pthread_exit(void *retval): abort
+int pthread_cond_init(void *cond, const void *attr): return0
+int pthread_cond_broadcast(void *cond): return0
+int pthread_cond_signal(void *cond): return0
+int pthread_cond_destroy(void *cond): return0
+int pthread_detach(unsigned long thread): return0
+
+void abort(void): abort
+void exit(int code): abort
+void _Exit(int status): abort
+int raise(int sig): abort
+int sigaction(int signum, const void *act, void *oldact): return_enosys
+int sigemptyset(void *set): return0
+int __fxstat(int ver, int fd, void *stat_buf): return_enosys
+long syscall(long number, ...): return_enosysL
+
+int clock_gettime(int clk_id, void *tp): return_enosys
+unsigned int sleep(unsigned int seconds): abort
+int usleep(unsigned int usec): abort
+int getpagesize(void): return_pagesize
+
+int fflush(void *stream): return0
+int close(int fd): return_enosys
+int open(const char *path, int flags, ...): return_enosys
+long lseek(int fd, long offset, int whence): return_enosysL
+long sysconf(int name): return_enosysL
+int dl_iterate_phdr(int (*callback)(void *, size_t, void *), void *data): return0
+int dladdr(const void *addr, void *info): return0
+int* __errno_location(void): return_errno_location
+char* strerror(int errnum): return_unsupported_string
+
+void __cxa_rethrow(void): abort
+void __cxa_throw(void *e, void *t, void *d): abort
+void* __cxa_allocate_exception(size_t thrown_size): abort
+int __cxa_atexit(void (*f)(void *), void *p, void *d): return0
+void* __cxa_begin_catch(void *e): return_arg0
+void __cxa_end_catch(void): empty
+int __cxa_guard_acquire(int *g): return1
+void __cxa_guard_release(int *g): empty
+void __gxx_personality_v0(void): empty
+
+void __assert_fail(const char *assertion, const char *file, unsigned int line, const char *function): abort
+void __stack_chk_fail(void): abort
+long __getauxval(unsigned long type): return0
+
+void _ZdlPv(void *p): free_arg0
+void _ZdlPvm(void *p, unsigned long s): free_arg0
+void* _Znwm(unsigned long s): return_malloc
+void _ZNSt9exceptionD1Ev(void): empty
+void _ZNSt9exceptionD2Ev(void): empty
+void _ZNSt15__exception_ptr13exception_ptrC1ERKS0_(void): empty
+void _ZNSt15__exception_ptr13exception_ptrD1Ev(void): empty
+void _ZNSt18condition_variable10notify_allEv(void): empty
+void _ZNSt18condition_variable4waitERSt11unique_lockISt5mutexE(void): abort
+void _ZNSt18condition_variableC1Ev(void): empty
+void _ZNSt18condition_variableD1Ev(void): empty
+void _ZNSt6chrono3_V212steady_clock3nowEv(void): abort
+void _ZSt13set_terminatePFvvE(void): empty
+void _ZSt17current_exceptionv(void): empty
+void _ZSt17rethrow_exceptionNSt15__exception_ptr13exception_ptrE(void): abort
+void _ZSt17__throw_bad_allocv(void): abort
+void _ZSt18_Rb_tree_incrementPKSt18_Rb_tree_node_base(void): abort
+void _ZSt20__throw_system_errori(int e): abort
+void _ZSt25__throw_bad_function_callv(void): abort
+void _ZSt9terminatev(void): abort

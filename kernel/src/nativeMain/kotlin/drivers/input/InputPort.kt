@@ -1,7 +1,6 @@
 package drivers.input
 
-import kernel.drivers.DeviceCapability
-import kernel.drivers.input.InputDeviceKind
+import drivers.DeviceCapability
 
 interface InputPort : DeviceCapability {
     val kind: InputDeviceKind

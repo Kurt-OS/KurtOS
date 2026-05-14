@@ -1,9 +1,8 @@
-package kernel.graphics
+package graphics
 
-import graphics.GraphicsConstants
-import kernel.drivers.DriverBinding
-import kernel.drivers.HardwareDevice
-import kernel.drivers.KernelDriver
+import drivers.DriverBinding
+import drivers.HardwareDevice
+import drivers.KernelDriver
 
 object VirtioGpuDriver : KernelDriver {
     override val name: String = "virtio-gpu"

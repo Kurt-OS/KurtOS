@@ -1,14 +1,10 @@
-package kernel.drivers.input
+package drivers.input
 
-import drivers.input.InputPort
-import drivers.input.VirtioInputDevice
-import drivers.input.VirtioInputEvent
-import kernel.drivers.DeviceCapability
-import kernel.drivers.DeviceManager
-import kernel.drivers.DriverBinding
-import kernel.drivers.HardwareDevice
-import kernel.drivers.KernelDriver
-import kernel.fdt.DeviceTree
+import drivers.DeviceManager
+import drivers.DriverBinding
+import drivers.HardwareDevice
+import drivers.KernelDriver
+import fdt.DeviceTree
 
 enum class InputDeviceKind {
     Keyboard,

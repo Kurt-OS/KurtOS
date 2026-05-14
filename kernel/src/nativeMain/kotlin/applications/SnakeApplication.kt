@@ -1,13 +1,13 @@
-package kernel.games
+package applications
 
 import hal.Clock
 import hal.UART
-import kernel.drivers.input.InputConstants
-import kernel.drivers.input.KeyboardEvent
-import kernel.drivers.input.InputService
-import kernel.fdt.DeviceTree
-import kernel.graphics.Framebuffer
-import kernel.graphics.GraphicsService
+import drivers.input.InputConstants
+import drivers.input.KeyboardEvent
+import drivers.input.InputService
+import fdt.DeviceTree
+import graphics.Framebuffer
+import graphics.GraphicsService
 
 object SnakeApplication {
     private const val BOARD_WIDTH = 32

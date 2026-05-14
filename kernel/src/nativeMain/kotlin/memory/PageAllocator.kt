@@ -1,4 +1,4 @@
-package kernel.memory
+package memory
 
 import hal.BootInfo
 import hal.Platform_QEMU
@@ -11,7 +11,11 @@ object PageAllocator {
     private var initialized = false
 
     val pageSize: UInt get() = PAGE_SIZE
-    val managedRange: PhysicalRange get() = PhysicalRange(base, pages.size.toULong() * PAGE_SIZE.toULong())
+    val managedRange: PhysicalRange
+        get() = PhysicalRange(
+            base,
+            pages.size.toULong() * PAGE_SIZE.toULong()
+        )
 
     fun initialize(fdtRange: PhysicalRange?) {
         if (initialized) return

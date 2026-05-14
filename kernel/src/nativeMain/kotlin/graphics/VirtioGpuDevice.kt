@@ -1,16 +1,16 @@
-package kernel.graphics
+package graphics
 
-import graphics.GraphicsConstants
-import kernel.drivers.virtio.VirtioMmioTransport
-import kernel.memory.DmaBuffer
-import kernel.memory.PageAllocator
+import drivers.virtio.VirtQueue
+import drivers.virtio.VirtioMmioTransport
+import memory.DmaBuffer
+import memory.PageAllocator
 
 internal class VirtioGpuDevice(private val transport: VirtioMmioTransport) : DisplayDevice {
     override val name: String = transport.name
     override var status: String = "not initialized"
         private set
 
-    private lateinit var queue: kernel.drivers.virtio.VirtQueue
+    private lateinit var queue: VirtQueue
     private lateinit var framebufferMemory: DmaBuffer
     private var framebuffer: Framebuffer? = null
     private var mode: GraphicsMode = GraphicsMode(640u, 480u, 640u * 4u)

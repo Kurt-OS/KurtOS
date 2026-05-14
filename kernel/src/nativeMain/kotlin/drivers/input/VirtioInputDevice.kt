@@ -1,11 +1,9 @@
 package drivers.input
 
-import kernel.drivers.input.InputConstants
-import kernel.drivers.input.InputDeviceKind
-import kernel.drivers.virtio.VirtQueue
-import kernel.drivers.virtio.VirtioMmioTransport
-import kernel.memory.DmaBuffer
-import kernel.memory.PageAllocator
+import drivers.virtio.VirtQueue
+import drivers.virtio.VirtioMmioTransport
+import memory.DmaBuffer
+import memory.PageAllocator
 
 data class VirtioInputEvent(
     val type: UShort,

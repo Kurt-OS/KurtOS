@@ -1,14 +1,13 @@
-package kernel.shell
+package shell
 
 import hal.UART
-import kernel.drivers.DeviceManager
-import kernel.drivers.input.InputService
-import kernel.fdt.DeviceTree
-import kernel.fs.FlxEntryKind
-import kernel.fs.FlxService
-import kernel.games.SnakeApplication
-import kernel.graphics.GraphicsService
-import shell.CommandRegistry
+import drivers.DeviceManager
+import drivers.input.InputService
+import fdt.DeviceTree
+import fs.FlxEntryKind
+import fs.FlxService
+import applications.SnakeApplication
+import graphics.GraphicsService
 
 object KernelShell {
     fun install(registry: CommandRegistry, deviceTree: DeviceTree?) {

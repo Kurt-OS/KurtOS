@@ -1,8 +1,8 @@
-package kernel.graphics
+package graphics
 
-import kernel.drivers.DeviceCapability
-import kernel.drivers.DeviceManager
-import kernel.fdt.DeviceTree
+import drivers.DeviceCapability
+import drivers.DeviceManager
+import fdt.DeviceTree
 
 data class GraphicsMode(val width: UInt, val height: UInt, val strideBytes: UInt)
 

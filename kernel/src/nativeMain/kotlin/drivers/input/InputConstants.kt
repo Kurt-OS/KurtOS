@@ -1,4 +1,4 @@
-package kernel.drivers.input
+package drivers.input
 
 object InputConstants {
 

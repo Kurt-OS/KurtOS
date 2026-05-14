@@ -1,4 +1,4 @@
-package kernel.memory
+package memory
 
 import hal.RawMemory
 

@@ -1,15 +1,15 @@
-package kernel.drivers
+package drivers
 
 import drivers.input.InputPort
 import hal.UART
-import kernel.drivers.input.VirtioInputDriver
-import kernel.drivers.storage.BlockDevice
-import kernel.drivers.storage.VirtioBlockDriver
-import kernel.drivers.virtio.VirtioMmioBus
-import kernel.drivers.virtio.VirtioMmioTransport
-import kernel.fdt.DeviceTree
-import kernel.graphics.DisplayDevice
-import kernel.graphics.VirtioGpuDriver
+import drivers.input.VirtioInputDriver
+import drivers.storage.BlockDevice
+import drivers.storage.VirtioBlockDriver
+import drivers.virtio.VirtioMmioBus
+import drivers.virtio.VirtioMmioTransport
+import fdt.DeviceTree
+import graphics.DisplayDevice
+import graphics.VirtioGpuDriver
 
 sealed class HardwareDevice {
     data class VirtioMmio(val transport: VirtioMmioTransport) : HardwareDevice()

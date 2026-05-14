@@ -1,6 +1,6 @@
-package kernel.fs
+package fs
 
-import kernel.drivers.storage.BlockStorageService
+import drivers.storage.BlockStorageService
 
 data class FlxDirectoryEntry(
     val name: String,

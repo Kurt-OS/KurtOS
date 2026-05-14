@@ -1,15 +1,15 @@
-package kernel.drivers.storage
+package drivers.storage
 
-import kernel.drivers.DeviceCapability
-import kernel.drivers.DeviceManager
-import kernel.drivers.DriverBinding
-import kernel.drivers.HardwareDevice
-import kernel.drivers.KernelDriver
-import kernel.drivers.virtio.VirtQueue
-import kernel.drivers.virtio.VirtioMmioTransport
-import kernel.fdt.DeviceTree
-import kernel.memory.DmaBuffer
-import kernel.memory.PageAllocator
+import drivers.DeviceCapability
+import drivers.DeviceManager
+import drivers.DriverBinding
+import drivers.HardwareDevice
+import drivers.KernelDriver
+import drivers.virtio.VirtQueue
+import drivers.virtio.VirtioMmioTransport
+import fdt.DeviceTree
+import memory.DmaBuffer
+import memory.PageAllocator
 
 private const val VIRTIO_BLOCK_DEVICE_ID: UInt = 2u
 private const val VIRTIO_BLK_T_IN: UInt = 0u

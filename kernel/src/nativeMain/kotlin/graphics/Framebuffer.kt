@@ -1,7 +1,7 @@
-package kernel.graphics
+package graphics
 
 import hal.RawMemory
-import kernel.memory.DmaBuffer
+import memory.DmaBuffer
 
 class Framebuffer internal constructor(
     private val device: VirtioGpuDevice,

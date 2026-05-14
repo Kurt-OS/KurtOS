@@ -1,8 +1,8 @@
-package kernel.fdt
+package fdt
 
 import hal.BootInfo
 import hal.RawMemory
-import kernel.memory.PhysicalRange
+import memory.PhysicalRange
 
 data class VirtioMmioDevice(
     val name: String,

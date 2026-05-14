@@ -1,4 +1,4 @@
-package kernel.fs
+package fs
 
 object FLXConstants {
 

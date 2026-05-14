@@ -1,10 +1,10 @@
-package kernel.drivers.virtio
+package drivers.virtio
 
 import hal.Platform_QEMU
 import hal.RawMemory
-import kernel.fdt.DeviceTree
-import kernel.memory.DmaBuffer
-import kernel.memory.PageAllocator
+import fdt.DeviceTree
+import memory.DmaBuffer
+import memory.PageAllocator
 
 private const val VIRTIO_MMIO_MAGIC: UInt = 0x74726976u
 

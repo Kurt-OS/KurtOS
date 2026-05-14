@@ -1,11 +1,9 @@
-package kernel
-
 import hal.Memory
 import hal.UART
-import kernel.drivers.DeviceManager
-import kernel.fdt.DeviceTree
-import kernel.memory.PageAllocator
-import kernel.shell.KernelShell
+import drivers.DeviceManager
+import fdt.DeviceTree
+import memory.PageAllocator
+import shell.KernelShell
 import shell.CommandRegistry
 import shell.Shell
 import userspace.Userspace

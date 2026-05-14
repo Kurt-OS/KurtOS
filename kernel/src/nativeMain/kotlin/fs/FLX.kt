@@ -1,8 +1,7 @@
-package kernel.fs
+package fs
 
-import kernel.drivers.storage.BlockStorageService
-import kernel.fs.FLXConstants
-import kernel.fdt.DeviceTree
+import drivers.storage.BlockStorageService
+import fdt.DeviceTree
 
 enum class FlxEntryKind {
     File,
@@ -84,7 +83,11 @@ object FlxService {
     fun list(path: String): List<FlxDirectoryEntry>? {
         val tree = resolveTree(path) ?: return null
         return readTree(tree).map {
-            FlxDirectoryEntry(it.name, if (it.kind == FLXConstants.FLX_OBJECT_TREE) FlxEntryKind.Directory else FlxEntryKind.File, it.size)
+            FlxDirectoryEntry(
+                it.name,
+                if (it.kind == FLXConstants.FLX_OBJECT_TREE) FlxEntryKind.Directory else FlxEntryKind.File,
+                it.size
+            )
         }
     }
 

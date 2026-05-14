@@ -22,9 +22,11 @@ SECTIONS
 
     .data : ALIGN(0x1000) {
         *(.data .data.*)
+        . = ALIGN(8);
         __init_array_start = .;
         *(.init_array .init_array.*)
         __init_array_end = .;
+        . = ALIGN(8);
         *(.fini_array .fini_array.*)
     }
 
@@ -34,6 +36,10 @@ SECTIONS
         *(COMMON)
         __bss_end = .;
     }
+
+    . = ALIGN(0x1000);
+    __tls_base = .;
+    . += 64K;
 
     . = ALIGN(0x1000);
     __heap_start = .;

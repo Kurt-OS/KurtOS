@@ -3,16 +3,25 @@ QEMU_FLAGS = -M virt \
              -cpu cortex-a53 \
              -m 128M \
              -nographic \
-             -serial mon:stdio \
+             -serial stdio \
+             -monitor none \
+             -global virtio-mmio.force-legacy=false \
+             -drive if=none,file=build/flx.img,format=raw,id=flx0 \
+             -device virtio-blk-device,drive=flx0 \
              -kernel build/kurtos.elf
 
 QEMU_GFX_FLAGS = -M virt \
                  -cpu cortex-a53 \
                  -m 128M \
                  -display gtk \
-                 -serial mon:stdio \
+                 -serial stdio \
+                 -monitor none \
                  -global virtio-mmio.force-legacy=false \
                  -device virtio-gpu-device \
+                 -device virtio-keyboard-device \
+                 -device virtio-tablet-device \
+                 -drive if=none,file=build/flx.img,format=raw,id=flx0 \
+                 -device virtio-blk-device,drive=flx0 \
                  -kernel build/kurtos.elf
 
 .PHONY: all run run-gfx debug clean

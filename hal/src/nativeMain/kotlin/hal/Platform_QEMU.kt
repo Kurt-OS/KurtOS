@@ -1,6 +1,5 @@
 package hal
 
-/** Compile-time constants describing the QEMU `virt` AArch64 machine. */
 object Platform_QEMU {
 
     const val UART_BASE: ULong = 0x09000000UL

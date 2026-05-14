@@ -28,6 +28,7 @@ private const val REG_QUEUE_DRIVER_LOW: ULong = 0x090UL
 private const val REG_QUEUE_DRIVER_HIGH: ULong = 0x094UL
 private const val REG_QUEUE_DEVICE_LOW: ULong = 0x0A0UL
 private const val REG_QUEUE_DEVICE_HIGH: ULong = 0x0A4UL
+private const val REG_CONFIG: ULong = 0x100UL
 
 private const val STATUS_ACKNOWLEDGE: UInt = 1u
 private const val STATUS_DRIVER: UInt = 2u
@@ -95,6 +96,16 @@ class VirtioMmioTransport(val name: String, val base: ULong) {
         if (status != 0u) write(REG_INTERRUPT_ACK, status)
     }
 
+    fun readConfig8(offset: ULong): UByte = RawMemory.read8(base + REG_CONFIG + offset)
+
+    fun readConfig16(offset: ULong): UShort = RawMemory.read16(base + REG_CONFIG + offset)
+
+    fun readConfig32(offset: ULong): UInt = RawMemory.read32(base + REG_CONFIG + offset)
+
+    fun writeConfig8(offset: ULong, value: UByte) {
+        RawMemory.write8(base + REG_CONFIG + offset, value)
+    }
+
     fun fail() {
         setStatus(STATUS_FAILED)
     }
@@ -115,6 +126,8 @@ class VirtioMmioTransport(val name: String, val base: ULong) {
     }
 }
 
+data class UsedElement(val id: UInt, val length: UInt)
+
 class VirtQueue internal constructor(
     private val transport: VirtioMmioTransport,
     private val index: UInt,
@@ -126,12 +139,26 @@ class VirtQueue internal constructor(
     private var availIndex: UShort = 0u
     private var lastUsedIndex: UShort = 0u
 
+    val capacity: UInt get() = size.toUInt()
+
     fun submit(command: DmaBuffer, commandLength: UInt, response: DmaBuffer, responseLength: UInt): Boolean {
         writeDescriptor(0u, command.physicalAddress, commandLength, flags = 1u, next = 1u)
         writeDescriptor(1u, response.physicalAddress, responseLength, flags = 2u, next = 0u)
 
+        return submitHead(0u)
+    }
+
+    fun submitRead(command: DmaBuffer, commandLength: UInt, data: DmaBuffer, dataLength: UInt, status: DmaBuffer): Boolean {
+        writeDescriptor(0u, command.physicalAddress, commandLength, flags = 1u, next = 1u)
+        writeDescriptor(1u, data.physicalAddress, dataLength, flags = 3u, next = 2u)
+        writeDescriptor(2u, status.physicalAddress, 1u, flags = 2u, next = 0u)
+
+        return submitHead(0u)
+    }
+
+    private fun submitHead(head: UShort): Boolean {
         val ringOffset = 4u + ((availIndex.toUInt() % size.toUInt()) * 2u)
-        avail.write16(ringOffset, 0u)
+        avail.write16(ringOffset, head)
         availIndex = (availIndex + 1u).toUShort()
         avail.write16(2u, availIndex)
 
@@ -145,6 +172,38 @@ class VirtQueue internal constructor(
         lastUsedIndex = used.read16(2u)
         transport.ackInterrupts()
         return true
+    }
+
+    fun postReceive(buffer: DmaBuffer, length: UInt) {
+        postReceiveDescriptor(0u, buffer, length)
+    }
+
+    fun postReceiveDescriptor(id: UInt, buffer: DmaBuffer, length: UInt) {
+        require(id < capacity) { "descriptor id out of range" }
+        writeDescriptor(id, buffer.physicalAddress, length, flags = 2u, next = 0u)
+
+        val ringOffset = 4u + ((availIndex.toUInt() % size.toUInt()) * 2u)
+        avail.write16(ringOffset, id.toUShort())
+        availIndex = (availIndex + 1u).toUShort()
+        avail.write16(2u, availIndex)
+
+        transport.notifyQueue(index)
+    }
+
+    fun consumeUsedLength(): UInt? {
+        return consumeUsed()?.length
+    }
+
+    fun consumeUsed(): UsedElement? {
+        val usedIndex = used.read16(2u)
+        if (usedIndex == lastUsedIndex) return null
+
+        val ringOffset = 4u + ((lastUsedIndex.toUInt() % size.toUInt()) * 8u)
+        val id = used.read32(ringOffset)
+        val length = used.read32(ringOffset + 4u)
+        lastUsedIndex = (lastUsedIndex + 1u).toUShort()
+        transport.ackInterrupts()
+        return UsedElement(id, length)
     }
 
     private fun writeDescriptor(id: UInt, address: ULong, length: UInt, flags: UShort, next: UShort) {

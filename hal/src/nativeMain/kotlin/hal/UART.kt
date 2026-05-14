@@ -44,6 +44,11 @@ object UART {
         return (mmioReadU32(DR) and 0xFFu).toInt().toChar()
     }
 
+    fun tryReadChar(): Char? {
+        if (mmioReadU32(FR) and RXFE_MASK != 0u) return null
+        return (mmioReadU32(DR) and 0xFFu).toInt().toChar()
+    }
+
     fun readLine(): String {
         val buf = StringBuilder()
         while (true) {

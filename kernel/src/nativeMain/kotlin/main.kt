@@ -2,19 +2,20 @@ package kernel
 
 import hal.Memory
 import hal.UART
+import kernel.drivers.DeviceManager
 import kernel.fdt.DeviceTree
-import kernel.graphics.KernelGraphicsCommands
 import kernel.memory.PageAllocator
+import kernel.shell.KernelShell
+import shell.CommandRegistry
 import shell.Shell
-import userspace.UserCommands
+import userspace.Userspace
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.CName
 
 @OptIn(ExperimentalNativeApi::class)
 @CName("kotlin_main")
 fun main() {
-    UART.println("KurtOS booting...")
-    UART.println("HAL initialized.")
+    UART.println("What's up with it, vanilla face?")
 
     Memory.reportHeapInfo()
     val deviceTree = DeviceTree.current()
@@ -25,15 +26,11 @@ fun main() {
         UART.println("FDT: base=0x${deviceTree.range.start.toString(16)} size=${deviceTree.totalSize} bytes")
     }
     UART.println("Pages: base=0x${PageAllocator.managedRange.start.toString(16)} size=${PageAllocator.managedRange.size} bytes")
-    KernelGraphicsCommands.initialize(deviceTree)
+    DeviceManager.initialize(deviceTree)
+    DeviceManager.printSummary()
 
-    Shell.run { command ->
-        if (command.trim() == "help") {
-            UserCommands.dispatch(command)
-            KernelGraphicsCommands.printHelp()
-            true
-        } else {
-            UserCommands.dispatch(command) || KernelGraphicsCommands.dispatch(command)
-        }
-    }
+    val registry = CommandRegistry()
+    Userspace.install(registry)
+    KernelShell.install(registry, deviceTree)
+    Shell.run(registry)
 }

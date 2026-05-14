@@ -9,6 +9,7 @@ kotlin {
         val linuxArm64Main by getting {
             dependencies {
                 implementation(project(":hal"))
+                implementation(project(":shell"))
             }
         }
     }

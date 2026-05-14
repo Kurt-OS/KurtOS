@@ -17,7 +17,7 @@ primary_cpu:
     ldr     x0, =__stack_top
     mov     sp, x0
 
-    ldr     x0, =0x407F0000
+    ldr     x0, =__tls_base
     msr     tpidr_el0, x0
 
     ldr     x1, =__bss_start

@@ -6,7 +6,6 @@ import drivers.input.InputService
 import fdt.DeviceTree
 import fs.FlxEntryKind
 import fs.FlxService
-import applications.SnakeApplication
 import graphics.GraphicsService
 
 object KernelShell {
@@ -115,28 +114,6 @@ object KernelShell {
             }
             UART.println(asciiPreview(bytes))
         }
-        registry.register("apps", "list runtime-loaded applications") {
-            if (!FlxService.initialize(deviceTree)) {
-                UART.println("FLX: ${FlxService.status()}")
-                return@register
-            }
-            val entries = FlxService.list("/apps")
-            if (entries == null) {
-                UART.println("No /apps directory found.")
-                return@register
-            }
-            entries.filter { it.kind == FlxEntryKind.File && it.name.endsWith(".app") }.forEach {
-                UART.println(it.name.removeSuffix(".app"))
-            }
-        }
-        registry.register("run", "load and run an application from FLX") { args ->
-            val app = args.getOrNull(0)
-            if (app == null) {
-                UART.println("usage: run <app>")
-                return@register
-            }
-            RuntimeAppLoader.run(deviceTree, app)
-        }
     }
 
     private fun runGraphicsTest(deviceTree: DeviceTree?) {
@@ -167,52 +144,6 @@ object KernelShell {
         return if (names.isEmpty()) "none" else names.joinToString("+")
     }
 
-}
-
-private object RuntimeAppLoader {
-    fun run(deviceTree: DeviceTree?, name: String) {
-        if (!FlxService.initialize(deviceTree)) {
-            UART.println("FLX: ${FlxService.status()}")
-            return
-        }
-
-        val path = "/apps/$name.app"
-        val file = FlxService.open(path)
-        if (file == null) {
-            UART.println("App not found: $name")
-            return
-        }
-
-        val bytes = file.readAll(2048u)
-        if (bytes == null) {
-            UART.println("App load failed: $name")
-            return
-        }
-        val manifest = parseManifest(asciiPreview(bytes))
-        if (manifest["name"] != name || manifest["type"] != "kotlin") {
-            UART.println("Invalid app manifest: $path")
-            return
-        }
-
-        when (manifest["entry"]) {
-            "snake" -> SnakeApplication.run(deviceTree)
-            else -> UART.println("Unsupported app entry: ${manifest["entry"] ?: "<missing>"}")
-        }
-    }
-
-    private fun parseManifest(text: String): Map<String, String> {
-        val values = mutableMapOf<String, String>()
-        val lines = text.split("\n", "\r\n", "\r")
-        if (lines.firstOrNull()?.trim() != "KAPP1") return values
-        lines.drop(1).forEach { line ->
-            val trimmed = line.trim()
-            val separator = trimmed.indexOf('=')
-            if (separator > 0) {
-                values[trimmed.substring(0, separator)] = trimmed.substring(separator + 1)
-            }
-        }
-        return values
-    }
 }
 
 private fun asciiPreview(bytes: ByteArray): String {

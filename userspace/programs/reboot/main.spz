@@ -1,0 +1,6 @@
+import libkurt
+
+fn main() -> i32 {
+    println("reboot is not available on this platform")
+    return 1
+}

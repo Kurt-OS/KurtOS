@@ -2,8 +2,8 @@ package graphics
 
 import drivers.virtio.VirtQueue
 import drivers.virtio.VirtioMmioTransport
-import memory.DmaBuffer
-import memory.PageAllocator
+import hal.DmaBuffer
+import hal.PageAllocator
 
 internal class VirtioGpuDevice(private val transport: VirtioMmioTransport) : DisplayDevice {
     override val name: String = transport.name

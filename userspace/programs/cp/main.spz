@@ -1,0 +1,9 @@
+import libkurt
+
+fn main() -> i32 {
+    if argc() < 2 {
+        println("usage: cp <source> <destination>")
+        return 2
+    }
+    return fs_copy(arg(0), arg(1))
+}

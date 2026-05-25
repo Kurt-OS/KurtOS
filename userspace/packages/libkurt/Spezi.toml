@@ -1,0 +1,4 @@
+[package]
+name = "libkurt"
+version = "0.1.0"
+extern = true

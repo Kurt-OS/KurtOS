@@ -40,8 +40,54 @@ val kernelBinaryDir = "kurtos${imageBuildType}Static"
 val kernelLinkTask = ":kernel:linkKurtos${imageBuildType}StaticLinuxArm64"
 val kernelStaticLib = project(":kernel").layout.buildDirectory.file("bin/linuxArm64/$kernelBinaryDir/libkurtos.a")
 val runtimeObjectsDir = project(":runtime").layout.buildDirectory.dir("objects")
+val runtimeSourceDir = project(":runtime").layout.projectDirectory.dir("src/main")
 val flxAssetsRoot = layout.projectDirectory.dir("assets")
+val userspaceProgramsRoot = layout.projectDirectory.dir("userspace/programs")
+val userspacePackageRoot = layout.projectDirectory.dir("userspace/packages")
+val generatedUserspaceRoot = layout.buildDirectory.dir("generated/userspace")
+val flxStagingRoot = layout.buildDirectory.dir("flx-root")
 val flxImage = layout.buildDirectory.file("flx.img")
+val flxReservedObjectRecords = 1024
+val flxWritableSlackBytes = 1024 * 1024
+
+val zeroBuilder = project(":zero").layout.buildDirectory.file("bin/native/debugExecutable/zero.kexe")
+val compileSpeziAppTasks = userspaceProgramsRoot.asFile.listFiles()
+    ?.filter { it.isDirectory && it.resolve("main.spz").isFile }
+    ?.sortedBy { it.name }
+    .orEmpty()
+    .map { appDir ->
+        val appName = appDir.name
+        tasks.register<Exec>("compileSpeziApp${appName.replaceFirstChar { it.uppercase() }}") {
+            group = "kurtos"
+            description = "Compile userspace/$appName to KurtOS bytecode"
+            dependsOn(":zero:linkDebugExecutableNative")
+
+            val source = appDir.resolve("main.spz")
+            val manifest = appDir.resolve("zero.toml")
+            val output = generatedUserspaceRoot.map { it.file("bin/$appName.app") }
+
+            inputs.file(source)
+            inputs.file(manifest)
+            inputs.dir(userspacePackageRoot)
+            outputs.file(output)
+
+            doFirst {
+                output.get().asFile.parentFile.mkdirs()
+            }
+
+            executable = zeroBuilder.get().asFile.absolutePath
+            args("build", "--manifest", manifest.absolutePath, "--output", output.get().asFile.absolutePath)
+            environment("ZERO_GIT_OVERRIDE_LIBKURT", layout.projectDirectory.dir("userspace/packages/libkurt").asFile.absolutePath)
+            environment("ZERO_GIT_OVERRIDE_KURT", layout.projectDirectory.dir("targets/kurt").asFile.absolutePath)
+            environment("ZERO_NO_LOCK", "1")
+        }
+    }
+
+val compileSpeziApps by tasks.registering {
+    group = "kurtos"
+    description = "Compile all Spezi userspace applications"
+    dependsOn(compileSpeziAppTasks)
+}
 
 data class FlxBuildObject(
     val hash: ByteArray,
@@ -55,10 +101,24 @@ val buildFlxImage by tasks.registering {
     group = "kurtos"
     description = "Build the FLX content-addressed filesystem image at build/flx.img"
 
+    dependsOn(compileSpeziApps)
+
     inputs.dir(flxAssetsRoot).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(generatedUserspaceRoot).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.file(flxImage)
 
     doLast {
+        val staging = flxStagingRoot.get().asFile
+        delete(staging)
+        copy {
+            from(flxAssetsRoot)
+            into(staging)
+        }
+        copy {
+            from(generatedUserspaceRoot)
+            into(staging)
+        }
+
         val objects = linkedMapOf<String, FlxBuildObject>()
 
         fun le32(value: Long): ByteArray = byteArrayOf(
@@ -122,14 +182,15 @@ val buildFlxImage by tasks.registering {
             return internObject(2, out.toByteArray(), 0L)
         }
 
-        val rootHash = buildTree(flxAssetsRoot.asFile)
+        val rootHash = buildTree(staging)
         val records = objects.values.sortedBy { hex(it.hash) }
-        var offset = alignUp(512L + records.size * 64L, 512L)
+        val reservedTableRecords = maxOf(flxReservedObjectRecords, records.size)
+        var offset = alignUp(512L + reservedTableRecords * 64L, 512L)
         records.forEach { record ->
             record.offset = offset
             offset += record.payload.size
         }
-        val finalSize = alignUp(offset, 512L).toInt()
+        val finalSize = alignUp(offset + flxWritableSlackBytes, 512L).toInt()
         val image = ByteArray(finalSize)
 
         "FLX1".toByteArray(Charsets.US_ASCII).copyInto(image, 0)
@@ -172,8 +233,18 @@ val linkKurtOS by tasks.registering(Exec::class) {
     outputs.file(layout.buildDirectory.file("kurtos.elf"))
 
     doFirst {
+        val currentRuntimeObjects = runtimeSourceDir.asFile.walkTopDown()
+            .filter { it.isFile && (it.extension == "c" || it.extension == "S") }
+            .map {
+                it.relativeTo(runtimeSourceDir.asFile)
+                    .invariantSeparatorsPath
+                    .replace('/', '_')
+                    .replace(Regex("\\.(c|S)$"), ".o")
+            }
+            .toSet() + "abi_kotlin_native_stubs.o"
         val runtimeObjects = runtimeObjectsDir.get().asFile.walkTopDown()
             .filter { it.isFile && it.extension == "o" }
+            .filter { it.name in currentRuntimeObjects }
             .sortedBy { it.relativeTo(runtimeObjectsDir.get().asFile).invariantSeparatorsPath }
             .toList()
         val bootObject = runtimeObjects.firstOrNull { it.name == "arch_aarch64_boot.o" }

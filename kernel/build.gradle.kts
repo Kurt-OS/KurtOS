@@ -19,7 +19,6 @@ kotlin {
             dependencies {
                 implementation(project(":hal"))
                 implementation(project(":shell"))
-                implementation(project(":userspace"))
             }
         }
     }

@@ -5,5 +5,7 @@ include(
     "kernel",
     "runtime",
     "shell",
+    "spezi",
     "userspace",
+    "zero",
 )

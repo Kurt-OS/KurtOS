@@ -1,7 +1,4 @@
-package memory
-
-import hal.BootInfo
-import hal.Platform_QEMU
+package hal
 
 private const val PAGE_SIZE: UInt = 4096u
 

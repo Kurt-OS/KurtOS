@@ -1,0 +1,10 @@
+import libkurt
+
+fn main() -> i32 {
+    if argc() < 1 {
+        println("usage: cat <path>")
+        return 2
+    }
+    print(fs_read(arg(0)))
+    return 0
+}

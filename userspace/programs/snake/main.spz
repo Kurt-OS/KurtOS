@@ -1,0 +1,222 @@
+import libkurt
+
+fn dir_dx(direction: i32) -> i32 {
+    if direction == 2 { return -1 }
+    if direction == 3 { return 1 }
+    return 0
+}
+
+fn dir_dy(direction: i32) -> i32 {
+    if direction == 0 { return -1 }
+    if direction == 1 { return 1 }
+    return 0
+}
+
+fn occupied(xs: i32, ys: i32, length: i32, x: i32, y: i32) -> bool {
+    let mut i = 0
+    while i < length {
+        if array_get(xs, i) == x {
+            if array_get(ys, i) == y {
+                return true
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn requested_turn(current: i32) -> i32 {
+    let mut direction = current
+    let c = try_read_char()
+
+    if key_down(1) != 0 { return -1 }
+    if key_down(16) != 0 { return -1 }
+    if c == 113 { return -1 }
+    if c == 81 { return -1 }
+    if c == 27 { return -1 }
+
+    if key_down(103) != 0 {
+        if direction != 1 { direction = 0 }
+    }
+    if key_down(17) != 0 {
+        if direction != 1 { direction = 0 }
+    }
+    if c == 119 {
+        if direction != 1 { direction = 0 }
+    }
+    if c == 87 {
+        if direction != 1 { direction = 0 }
+    }
+
+    if key_down(108) != 0 {
+        if direction != 0 { direction = 1 }
+    }
+    if key_down(31) != 0 {
+        if direction != 0 { direction = 1 }
+    }
+    if c == 115 {
+        if direction != 0 { direction = 1 }
+    }
+    if c == 83 {
+        if direction != 0 { direction = 1 }
+    }
+
+    if key_down(105) != 0 {
+        if direction != 3 { direction = 2 }
+    }
+    if key_down(30) != 0 {
+        if direction != 3 { direction = 2 }
+    }
+    if c == 97 {
+        if direction != 3 { direction = 2 }
+    }
+    if c == 65 {
+        if direction != 3 { direction = 2 }
+    }
+
+    if key_down(106) != 0 {
+        if direction != 2 { direction = 3 }
+    }
+    if key_down(32) != 0 {
+        if direction != 2 { direction = 3 }
+    }
+    if c == 100 {
+        if direction != 2 { direction = 3 }
+    }
+    if c == 68 {
+        if direction != 2 { direction = 3 }
+    }
+
+    return direction
+}
+
+fn draw_cell(origin_x: i32, origin_y: i32, cell: i32, x: i32, y: i32, color: i32) -> void {
+    let mut inset = cell / 8
+    if inset < 1 { inset = 1 }
+    let mut size = cell - inset * 2
+    if size < 1 { size = 1 }
+    gfx_fill_rect(origin_x + x * cell + inset, origin_y + y * cell + inset, size, size, color)
+}
+
+fn render(xs: i32, ys: i32, length: i32, food_x: i32, food_y: i32, cell: i32, game_over: i32) -> void {
+    let board_w = 32 * cell
+    let board_h = 24 * cell
+    let origin_x = (gfx_width() - board_w) / 2
+    let origin_y = (gfx_height() - board_h) / 2
+    let mut border = 5074773
+    if game_over != 0 { border = 8921634 }
+
+    gfx_clear(461582)
+    gfx_fill_rect(origin_x - cell, origin_y - cell, board_w + cell * 2, board_h + cell * 2, border)
+    gfx_fill_rect(origin_x, origin_y, board_w, board_h, 1054738)
+    draw_cell(origin_x, origin_y, cell, food_x, food_y, 14434098)
+
+    let mut i = length - 1
+    while i >= 0 {
+        let mut color = 4765786
+        if i == 0 { color = 12055914 }
+        if game_over != 0 {
+            if i == 0 { color = 8921634 }
+        }
+        draw_cell(origin_x, origin_y, cell, array_get(xs, i), array_get(ys, i), color)
+        i = i - 1
+    }
+    gfx_present()
+}
+
+fn main() -> i32 {
+    if gfx_init() == 0 {
+        println("snake: graphics unavailable")
+        return 1
+    }
+    if input_init() == 0 {
+        println("snake: input unavailable")
+        return 1
+    }
+
+    let mut cell = gfx_width() / 34
+    let cell_y = gfx_height() / 27
+    if cell_y < cell { cell = cell_y }
+    if cell < 1 {
+        println("snake: framebuffer too small")
+        return 1
+    }
+
+    let xs = array_new(768, 0)
+    let ys = array_new(768, 0)
+    let mut length = 5
+    let start_x = 16
+    let start_y = 12
+    let mut i = 0
+    while i < length {
+        array_set(xs, i, start_x - i)
+        array_set(ys, i, start_y)
+        i = i + 1
+    }
+
+    let mut food_x = 7
+    let mut food_y = 5
+    let mut direction = 3
+    let mut score = 0
+    let mut game_over = 0
+    let mut next_tick = clock_ms() + 115
+    render(xs, ys, length, food_x, food_y, cell, 0)
+
+    while game_over == 0 {
+        input_poll()
+        let turn = requested_turn(direction)
+        if turn < 0 {
+            println("Snake exited.")
+            return 0
+        }
+        direction = turn
+
+        let now = clock_ms()
+        if now >= next_tick {
+            next_tick = now + 115
+            let next_x = array_get(xs, 0) + dir_dx(direction)
+            let next_y = array_get(ys, 0) + dir_dy(direction)
+            let mut grow = 0
+            if next_x == food_x {
+                if next_y == food_y { grow = 1 }
+            }
+
+            if next_x < 0 { game_over = 1 }
+            if next_x >= 32 { game_over = 1 }
+            if next_y < 0 { game_over = 1 }
+            if next_y >= 24 { game_over = 1 }
+
+            let mut collision_limit = length - 1
+            if grow != 0 { collision_limit = length }
+            if occupied(xs, ys, collision_limit, next_x, next_y) {
+                game_over = 1
+            }
+
+            if game_over == 0 {
+                let mut new_length = length
+                if grow != 0 {
+                    if length < 768 { new_length = length + 1 }
+                }
+                let mut move_i = new_length - 1
+                while move_i > 0 {
+                    array_set(xs, move_i, array_get(xs, move_i - 1))
+                    array_set(ys, move_i, array_get(ys, move_i - 1))
+                    move_i = move_i - 1
+                }
+                array_set(xs, 0, next_x)
+                array_set(ys, 0, next_y)
+                length = new_length
+                if grow != 0 {
+                    score = score + 1
+                    food_x = (food_x + 7) % 32
+                    food_y = (food_y + 5) % 24
+                }
+            }
+
+            render(xs, ys, length, food_x, food_y, cell, game_over)
+        }
+    }
+
+    println("Snake game over.")
+    return score
+}

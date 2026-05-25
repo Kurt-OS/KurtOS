@@ -1,10 +1,10 @@
 package drivers.virtio
 
 import hal.Platform_QEMU
-import hal.RawMemory
 import fdt.DeviceTree
-import memory.DmaBuffer
-import memory.PageAllocator
+import hal.DmaBuffer
+import hal.MmioRegisters
+import hal.PageAllocator
 
 private const val VIRTIO_MMIO_MAGIC: UInt = 0x74726976u
 
@@ -37,6 +37,7 @@ private const val STATUS_FEATURES_OK: UInt = 8u
 private const val STATUS_FAILED: UInt = 128u
 
 class VirtioMmioTransport(val name: String, val base: ULong) {
+    private val registers = MmioRegisters(base)
 
     val deviceId: UInt get() = read(REG_DEVICE_ID)
     val version: UInt get() = read(REG_VERSION)
@@ -96,14 +97,14 @@ class VirtioMmioTransport(val name: String, val base: ULong) {
         if (status != 0u) write(REG_INTERRUPT_ACK, status)
     }
 
-    fun readConfig8(offset: ULong): UByte = RawMemory.read8(base + REG_CONFIG + offset)
+    fun readConfig8(offset: ULong): UByte = registers.read8(REG_CONFIG + offset)
 
-    fun readConfig16(offset: ULong): UShort = RawMemory.read16(base + REG_CONFIG + offset)
+    fun readConfig16(offset: ULong): UShort = registers.read16(REG_CONFIG + offset)
 
-    fun readConfig32(offset: ULong): UInt = RawMemory.read32(base + REG_CONFIG + offset)
+    fun readConfig32(offset: ULong): UInt = registers.read32(REG_CONFIG + offset)
 
     fun writeConfig8(offset: ULong, value: UByte) {
-        RawMemory.write8(base + REG_CONFIG + offset, value)
+        registers.write8(REG_CONFIG + offset, value)
     }
 
     fun fail() {
@@ -119,10 +120,10 @@ class VirtioMmioTransport(val name: String, val base: ULong) {
         write(lowRegister + 4UL, (address shr 32).toUInt())
     }
 
-    private fun read(offset: ULong): UInt = RawMemory.read32(base + offset)
+    private fun read(offset: ULong): UInt = registers.read32(offset)
 
     private fun write(offset: ULong, value: UInt) {
-        RawMemory.write32(base + offset, value)
+        registers.write32(offset, value)
     }
 }
 
@@ -151,6 +152,14 @@ class VirtQueue internal constructor(
     fun submitRead(command: DmaBuffer, commandLength: UInt, data: DmaBuffer, dataLength: UInt, status: DmaBuffer): Boolean {
         writeDescriptor(0u, command.physicalAddress, commandLength, flags = 1u, next = 1u)
         writeDescriptor(1u, data.physicalAddress, dataLength, flags = 3u, next = 2u)
+        writeDescriptor(2u, status.physicalAddress, 1u, flags = 2u, next = 0u)
+
+        return submitHead(0u)
+    }
+
+    fun submitWrite(command: DmaBuffer, commandLength: UInt, data: DmaBuffer, dataLength: UInt, status: DmaBuffer): Boolean {
+        writeDescriptor(0u, command.physicalAddress, commandLength, flags = 1u, next = 1u)
+        writeDescriptor(1u, data.physicalAddress, dataLength, flags = 1u, next = 2u)
         writeDescriptor(2u, status.physicalAddress, 1u, flags = 2u, next = 0u)
 
         return submitHead(0u)

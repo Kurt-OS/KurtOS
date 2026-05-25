@@ -9,10 +9,13 @@ enum class FlxEntryKind {
 }
 
 object FlxService {
+    private const val MAX_OBJECT_RECORDS: Int = 1024
+
     private var initialized = false
     private var mounted = false
     private var rootHash: ByteArray = ByteArray(32)
     private var objects: List<FlxObjectRecord> = emptyList()
+    private var tableOffset: ULong = 0UL
     private var lastStatus = "not initialized"
 
     fun initialize(deviceTree: DeviceTree?): Boolean {
@@ -34,7 +37,7 @@ object FlxService {
         val version = le32(superblock, 4)
         val blockSize = le32(superblock, 8)
         val objectCount = le32(superblock, 12)
-        val tableOffset = le64(superblock, 16)
+        tableOffset = le64(superblock, 16)
         val tableSize = le64(superblock, 24)
         if (magic != FLXConstants.FLX_MAGIC || version != FLXConstants.FLX_VERSION || blockSize != FLXConstants.FLX_BLOCK_SIZE) {
             lastStatus = "invalid FLX superblock"
@@ -117,10 +120,66 @@ object FlxService {
         return ascii(bytes, 0, 4)
     }
 
-    private fun resolveTree(path: String): FlxObjectRecord? {
+    fun write(path: String, content: String): Boolean {
         val parts = pathParts(normalizePath(path))
+        if (parts.isEmpty()) {
+            lastStatus = "cannot write root directory"
+            return false
+        }
+
+        val fileName = parts.last()
+        val parentParts = parts.dropLast(1)
+        val payload = content.encodeToByteArray()
+        val blobHash = appendObject(FLXConstants.FLX_OBJECT_BLOB, payload) ?: return false
+        val newRoot = rewriteTree(parentParts) { entries ->
+            val existing = entries.firstOrNull { it.name == fileName }
+            if (existing != null && existing.kind == FLXConstants.FLX_OBJECT_TREE) {
+                lastStatus = "path is a directory: $path"
+                null
+            } else {
+                entries
+                    .filter { it.name != fileName }
+                    .plus(FlxTreeEntry(fileName, FLXConstants.FLX_OBJECT_BLOB, payload.size.toULong(), blobHash))
+                    .sortedBy { it.name }
+            }
+        } ?: return false
+
+        rootHash = newRoot
+        return persistSuperblock()
+    }
+
+    fun mkdir(path: String): Boolean {
+        val parts = pathParts(normalizePath(path))
+        if (parts.isEmpty()) return true
+
+        val dirName = parts.last()
+        val parentParts = parts.dropLast(1)
+        val emptyTree = appendObject(FLXConstants.FLX_OBJECT_TREE, encodeTree(emptyList())) ?: return false
+        val newRoot = rewriteTree(parentParts) { entries ->
+            if (entries.any { it.name == dirName }) {
+                lastStatus = "path already exists: $path"
+                null
+            } else {
+                entries
+                    .plus(FlxTreeEntry(dirName, FLXConstants.FLX_OBJECT_TREE, 0UL, emptyTree))
+                    .sortedBy { it.name }
+            }
+        } ?: return false
+
+        rootHash = newRoot
+        return persistSuperblock()
+    }
+
+    private fun resolveTree(path: String): FlxObjectRecord? {
+        return resolveTreeWithHash(pathParts(normalizePath(path)))?.second
+    }
+
+    private fun resolveTreeWithHash(parts: List<String>): Pair<ByteArray, FlxObjectRecord>? {
         var currentHash = rootHash
-        if (parts.isEmpty()) return findObject(currentHash, FLXConstants.FLX_OBJECT_TREE)
+        if (parts.isEmpty()) {
+            val root = findObject(currentHash, FLXConstants.FLX_OBJECT_TREE) ?: return null
+            return currentHash to root
+        }
 
         for (part in parts) {
             val tree = findObject(currentHash, FLXConstants.FLX_OBJECT_TREE) ?: return null
@@ -128,7 +187,8 @@ object FlxService {
             if (entry.kind != FLXConstants.FLX_OBJECT_TREE) return null
             currentHash = entry.hash
         }
-        return findObject(currentHash, FLXConstants.FLX_OBJECT_TREE)
+        val tree = findObject(currentHash, FLXConstants.FLX_OBJECT_TREE) ?: return null
+        return currentHash to tree
     }
 
     private fun readTree(record: FlxObjectRecord): List<FlxTreeEntry> {
@@ -154,6 +214,84 @@ object FlxService {
 
     private fun findObject(hash: ByteArray, type: UInt): FlxObjectRecord? =
         objects.firstOrNull { it.type == type && bytesEqual(it.hash, hash) }
+
+    private fun rewriteTree(parts: List<String>, transform: (List<FlxTreeEntry>) -> List<FlxTreeEntry>?): ByteArray? =
+        rewriteTree(rootHash, parts, transform)
+
+    private fun rewriteTree(
+        currentHash: ByteArray,
+        parts: List<String>,
+        transform: (List<FlxTreeEntry>) -> List<FlxTreeEntry>?,
+    ): ByteArray? {
+        val tree = findObject(currentHash, FLXConstants.FLX_OBJECT_TREE) ?: return null
+        val entries = readTree(tree)
+        val updated = if (parts.isEmpty()) {
+            transform(entries) ?: return null
+        } else {
+            val childName = parts.first()
+            val child = entries.firstOrNull { it.name == childName && it.kind == FLXConstants.FLX_OBJECT_TREE }
+            if (child == null) {
+                lastStatus = "directory not found: $childName"
+                return null
+            }
+            val childHash = rewriteTree(child.hash, parts.drop(1), transform) ?: return null
+            entries
+                .map { if (it.name == childName) it.copy(hash = childHash) else it }
+                .sortedBy { it.name }
+        }
+
+        return appendObject(FLXConstants.FLX_OBJECT_TREE, encodeTree(updated))
+    }
+
+    private fun appendObject(type: UInt, payload: ByteArray): ByteArray? {
+        if (objects.size >= MAX_OBJECT_RECORDS) {
+            lastStatus = "FLX object table is full"
+            return null
+        }
+
+        var salt = objects.size.toUInt()
+        var hash = hashObject(type, payload, salt)
+        while (findObject(hash, type) != null) {
+            salt++
+            hash = hashObject(type, payload, salt)
+        }
+
+        val offset = alignUp(objects.fold(0UL) { max, record -> maxOf(max, record.offset + record.size) }, FLXConstants.FLX_BLOCK_SIZE.toULong())
+        val record = FlxObjectRecord(hash, type, offset, payload.size.toULong())
+        if (!BlockStorageService.writeBytes(offset, payload)) {
+            lastStatus = "unable to write FLX object payload"
+            return null
+        }
+        if (!writeObjectRecord(objects.size, record)) {
+            lastStatus = "unable to write FLX object record"
+            return null
+        }
+
+        objects = objects + record
+        return hash
+    }
+
+    private fun writeObjectRecord(index: Int, record: FlxObjectRecord): Boolean {
+        val bytes = ByteArray(FLXConstants.FLX_OBJECT_RECORD_SIZE.toInt())
+        record.hash.copyInto(bytes, 0)
+        writeLe32(bytes, 32, record.type)
+        writeLe64(bytes, 40, record.offset)
+        writeLe64(bytes, 48, record.size)
+        writeLe64(bytes, 56, record.size)
+        return BlockStorageService.writeBytes(tableOffset + index.toULong() * FLXConstants.FLX_OBJECT_RECORD_SIZE.toULong(), bytes)
+    }
+
+    private fun persistSuperblock(): Boolean {
+        val header = BlockStorageService.readBytes(0UL, FLXConstants.FLX_BLOCK_SIZE) ?: return false
+        rootHash.copyInto(header, 32)
+        writeLe32(header, 12, objects.size.toUInt())
+        writeLe64(header, 24, objects.size.toULong() * FLXConstants.FLX_OBJECT_RECORD_SIZE.toULong())
+        val end = alignUp(objects.fold(0UL) { max, record -> maxOf(max, record.offset + record.size) }, FLXConstants.FLX_BLOCK_SIZE.toULong())
+        writeLe64(header, 64, end)
+        val ok = BlockStorageService.writeBytes(0UL, header)
+        lastStatus = if (ok) "mounted ${objects.size} objects" else "unable to write FLX superblock"
+        return ok
+    }
 }
 
 internal data class FlxObjectRecord(
@@ -214,6 +352,25 @@ private data class FlxTreeEntry(
     }
 }
 
+private fun encodeTree(entries: List<FlxTreeEntry>): ByteArray {
+    var size = 4
+    entries.forEach { size += 48 + it.name.length }
+    val out = ByteArray(size)
+    writeLe32(out, 0, entries.size.toUInt())
+    var cursor = 4
+    entries.forEach { entry ->
+        val nameBytes = entry.name.encodeToByteArray()
+        writeLe32(out, cursor, entry.kind)
+        writeLe32(out, cursor + 4, nameBytes.size.toUInt())
+        writeLe64(out, cursor + 8, entry.size)
+        entry.hash.copyInto(out, cursor + 16)
+        cursor += 48
+        nameBytes.copyInto(out, cursor)
+        cursor += nameBytes.size
+    }
+    return out
+}
+
 private fun normalizePath(path: String): String =
     path.trim().ifBlank { "/" }.let { if (it.startsWith("/")) it else "/$it" }
 
@@ -246,6 +403,46 @@ private fun slice(bytes: ByteArray, offset: Int, length: Int): ByteArray {
         i++
     }
     return result
+}
+
+private fun writeLe32(target: ByteArray, offset: Int, value: UInt) {
+    val raw = value.toLong()
+    target[offset] = raw.toByte()
+    target[offset + 1] = (raw shr 8).toByte()
+    target[offset + 2] = (raw shr 16).toByte()
+    target[offset + 3] = (raw shr 24).toByte()
+}
+
+private fun writeLe64(target: ByteArray, offset: Int, value: ULong) {
+    var i = 0
+    while (i < 8) {
+        target[offset + i] = (value shr (i * 8)).toByte()
+        i++
+    }
+}
+
+private fun alignUp(value: ULong, alignment: ULong): ULong =
+    (value + alignment - 1UL) and (alignment - 1UL).inv()
+
+private fun hashObject(type: UInt, payload: ByteArray, salt: UInt): ByteArray {
+    var a = 0xcbf29ce484222325UL xor type.toULong()
+    var b = 0x100000001b3UL xor salt.toULong()
+    for (byte in payload) {
+        val v = (byte.toInt() and 0xff).toULong()
+        a = (a xor v) * 0x100000001b3UL
+        b = (b + v + (a shl 7)) xor (b shr 3)
+    }
+    val out = ByteArray(32)
+    var x = a
+    var y = b
+    var i = 0
+    while (i < 32) {
+        x = (x xor (y shl 13)) * 0xff51afd7ed558ccdUL
+        y = (y xor (x shr 11)) * 0xc4ceb9fe1a85ec53UL
+        out[i] = (x xor y).toByte()
+        i++
+    }
+    return out
 }
 
 private fun ascii(bytes: ByteArray, offset: Int, length: Int): String {

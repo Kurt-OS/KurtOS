@@ -8,16 +8,18 @@ import drivers.KernelDriver
 import drivers.virtio.VirtQueue
 import drivers.virtio.VirtioMmioTransport
 import fdt.DeviceTree
-import memory.DmaBuffer
-import memory.PageAllocator
+import hal.DmaBuffer
+import hal.PageAllocator
 
 private const val VIRTIO_BLOCK_DEVICE_ID: UInt = 2u
 private const val VIRTIO_BLK_T_IN: UInt = 0u
+private const val VIRTIO_BLK_T_OUT: UInt = 1u
 private const val SECTOR_SIZE: UInt = 512u
 
 interface BlockDevice : DeviceCapability {
     val capacityBytes: ULong
     fun readBytes(offset: ULong, length: UInt): ByteArray?
+    fun writeBytes(offset: ULong, bytes: ByteArray): Boolean
 }
 
 object BlockStorageService {
@@ -35,6 +37,11 @@ object BlockStorageService {
     fun readBytes(offset: ULong, length: UInt): ByteArray? {
         val block = DeviceManager.blockDevices().firstOrNull() ?: return null
         return block.readBytes(offset, length)
+    }
+
+    fun writeBytes(offset: ULong, bytes: ByteArray): Boolean {
+        val block = DeviceManager.blockDevices().firstOrNull() ?: return false
+        return block.writeBytes(offset, bytes)
     }
 }
 
@@ -111,6 +118,34 @@ class VirtioBlockDevice(private val transport: VirtioMmioTransport) : BlockDevic
         return output
     }
 
+    override fun writeBytes(offset: ULong, bytes: ByteArray): Boolean {
+        if (bytes.isEmpty()) return true
+
+        var copied = 0u
+        var cursor = offset
+        val length = bytes.size.toUInt()
+        while (copied < length) {
+            val sector = cursor / SECTOR_SIZE.toULong()
+            val sectorOffset = (cursor % SECTOR_SIZE.toULong()).toUInt()
+            if (sector >= capacitySectors) return false
+
+            if (sectorOffset != 0u || length - copied < SECTOR_SIZE) {
+                if (!readSector(sector)) return false
+            } else {
+                data.zero()
+            }
+
+            val available = SECTOR_SIZE - sectorOffset
+            val step = minOf(available, length - copied)
+            data.copyFromBytes(bytes, copied.toInt(), sectorOffset, step)
+            if (!writeSector(sector)) return false
+
+            copied += step
+            cursor += step.toULong()
+        }
+        return true
+    }
+
     private fun readSector(sector: ULong): Boolean {
         request.zero()
         request.write32(0u, VIRTIO_BLK_T_IN)
@@ -125,6 +160,25 @@ class VirtioBlockDevice(private val transport: VirtioMmioTransport) : BlockDevic
         }
         if (requestStatus.read8(0u) != 0.toUByte()) {
             status = "read failed at sector $sector"
+            return false
+        }
+        return true
+    }
+
+    private fun writeSector(sector: ULong): Boolean {
+        request.zero()
+        request.write32(0u, VIRTIO_BLK_T_OUT)
+        request.write32(4u, 0u)
+        request.write64(8u, sector)
+        requestStatus.write8(0u, 0xffu)
+
+        val ok = queue.submitWrite(request, 16u, data, SECTOR_SIZE, requestStatus)
+        if (!ok) {
+            status = "virtqueue timeout"
+            return false
+        }
+        if (requestStatus.read8(0u) != 0.toUByte()) {
+            status = "write failed at sector $sector"
             return false
         }
         return true

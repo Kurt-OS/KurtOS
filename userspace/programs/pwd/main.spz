@@ -1,0 +1,6 @@
+import libkurt
+
+fn main() -> i32 {
+    println("/")
+    return 0
+}

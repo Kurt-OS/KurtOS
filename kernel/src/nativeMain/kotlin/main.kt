@@ -2,11 +2,11 @@ import hal.Memory
 import hal.UART
 import drivers.DeviceManager
 import fdt.DeviceTree
-import memory.PageAllocator
+import hal.PageAllocator
 import shell.KernelShell
 import shell.CommandRegistry
 import shell.Shell
-import userspace.Userspace
+import userspace.UserspaceRuntime
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.CName
 
@@ -28,7 +28,7 @@ fun main() {
     DeviceManager.printSummary()
 
     val registry = CommandRegistry()
-    Userspace.install(registry)
+    UserspaceRuntime.install(registry, deviceTree)
     KernelShell.install(registry, deviceTree)
     Shell.run(registry)
 }

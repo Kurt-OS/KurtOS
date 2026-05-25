@@ -1,7 +1,6 @@
 package graphics
 
-import hal.RawMemory
-import memory.DmaBuffer
+import hal.DmaBuffer
 
 class Framebuffer internal constructor(
     private val device: VirtioGpuDevice,
@@ -19,7 +18,7 @@ class Framebuffer internal constructor(
 
     fun setPixel(x: UInt, y: UInt, color: UInt) {
         if (x >= mode.width || y >= mode.height) return
-        RawMemory.write32(buffer.physicalAddress + y.toULong() * mode.strideBytes.toULong() + x.toULong() * 4UL, color)
+        buffer.write32(y * mode.strideBytes + x * 4u, color)
         markDirty(x, y, 1u, 1u)
     }
 
@@ -31,8 +30,7 @@ class Framebuffer internal constructor(
         val rowPixels = endX - x
         var py = y
         while (py < endY) {
-            val address = buffer.physicalAddress + py.toULong() * mode.strideBytes.toULong() + x.toULong() * 4UL
-            RawMemory.fill32(address, color, rowPixels)
+            buffer.fill32(py * mode.strideBytes + x * 4u, color, rowPixels)
             py++
         }
         markDirty(x, y, rowPixels, endY - y)
@@ -62,10 +60,7 @@ class Framebuffer internal constructor(
                 val sourceIndex = (sy * sourceWidth + sx).toInt()
                 val paletteIndex = pixels[sourceIndex].toInt() and 0xff
                 val color = if (paletteIndex < palette.size) palette[paletteIndex] else 0u
-                RawMemory.write32(
-                    buffer.physicalAddress + dy.toULong() * mode.strideBytes.toULong() + dx.toULong() * 4UL,
-                    color,
-                )
+                buffer.write32(dy * mode.strideBytes + dx * 4u, color)
                 dx++
             }
             dy++

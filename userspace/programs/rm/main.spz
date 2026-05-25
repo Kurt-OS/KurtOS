@@ -1,0 +1,9 @@
+import libkurt
+
+fn main() -> i32 {
+    if argc() < 1 {
+        println("usage: rm <path>")
+        return 2
+    }
+    return fs_delete(arg(0))
+}

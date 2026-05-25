@@ -2,8 +2,8 @@ package drivers.input
 
 import drivers.virtio.VirtQueue
 import drivers.virtio.VirtioMmioTransport
-import memory.DmaBuffer
-import memory.PageAllocator
+import hal.DmaBuffer
+import hal.PageAllocator
 
 data class VirtioInputEvent(
     val type: UShort,

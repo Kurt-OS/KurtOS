@@ -1,6 +1,4 @@
-package memory
-
-import hal.RawMemory
+package hal
 
 class DmaBuffer internal constructor(
     val physicalAddress: ULong,
@@ -23,6 +21,10 @@ class DmaBuffer internal constructor(
         RawMemory.write32(physicalAddress + offset.toULong(), value)
     }
 
+    fun fill32(offset: UInt, value: UInt, count: UInt) {
+        RawMemory.fill32(physicalAddress + offset.toULong(), value, count)
+    }
+
     fun write64(offset: UInt, value: ULong) {
         RawMemory.write64(physicalAddress + offset.toULong(), value)
     }
@@ -39,6 +41,14 @@ class DmaBuffer internal constructor(
         var i = 0u
         while (i < length) {
             target[targetOffset + i.toInt()] = read8(sourceOffset + i).toByte()
+            i++
+        }
+    }
+
+    fun copyFromBytes(source: ByteArray, sourceOffset: Int = 0, targetOffset: UInt = 0u, length: UInt = size) {
+        var i = 0u
+        while (i < length) {
+            write8(targetOffset + i, source[sourceOffset + i.toInt()].toUByte())
             i++
         }
     }

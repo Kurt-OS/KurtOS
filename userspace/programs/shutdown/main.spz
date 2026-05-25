@@ -1,6 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    println("shutdown is not available on this platform")
-    return 1
-}

@@ -1,6 +1,0 @@
-[package]
-name = "kurtos-userspace"
-version = "0.1.0"
-
-[dependencies]
-libkurt = "packages/libkurt"

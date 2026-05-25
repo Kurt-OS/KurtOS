@@ -12,9 +12,6 @@
             <option value="$PROJECT_DIR$/kernel" />
             <option value="$PROJECT_DIR$/runtime" />
             <option value="$PROJECT_DIR$/shell" />
-            <option value="$PROJECT_DIR$/spezi" />
-            <option value="$PROJECT_DIR$/userspace" />
-            <option value="$PROJECT_DIR$/zero" />
           </set>
         </option>
         <option name="myGradleHome" value="" />

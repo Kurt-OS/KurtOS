@@ -1,4 +1,8 @@
 QEMU       = qemu-system-aarch64
+GRADLE_FLAGS =
+ifneq ($(KURTOS_ROOT),)
+GRADLE_FLAGS += -Pkurtos.root=$(KURTOS_ROOT)
+endif
 QEMU_FLAGS = -M virt \
              -cpu cortex-a53 \
              -m 128M \
@@ -27,7 +31,7 @@ QEMU_GFX_FLAGS = -M virt \
 .PHONY: all run run-gfx debug clean
 
 all:
-	./gradlew buildImage
+	./gradlew buildImage $(GRADLE_FLAGS)
 
 run: all
 	$(QEMU) $(QEMU_FLAGS)

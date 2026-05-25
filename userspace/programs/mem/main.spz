@@ -1,6 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    print(mem_info())
-    return 0
-}

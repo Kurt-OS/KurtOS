@@ -1,9 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    if argc() < 2 {
-        println("usage: mv <source> <destination>")
-        return 2
-    }
-    return fs_move(arg(0), arg(1))
-}

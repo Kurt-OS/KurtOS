@@ -1,7 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    println("The interactive kernel shell is already running.")
-    println("Use 'apps' to list userspace applications.")
-    return 0
-}

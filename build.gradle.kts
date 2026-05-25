@@ -41,52 +41,21 @@ val kernelLinkTask = ":kernel:linkKurtos${imageBuildType}StaticLinuxArm64"
 val kernelStaticLib = project(":kernel").layout.buildDirectory.file("bin/linuxArm64/$kernelBinaryDir/libkurtos.a")
 val runtimeObjectsDir = project(":runtime").layout.buildDirectory.dir("objects")
 val runtimeSourceDir = project(":runtime").layout.projectDirectory.dir("src/main")
-val flxAssetsRoot = layout.projectDirectory.dir("assets")
-val userspaceProgramsRoot = layout.projectDirectory.dir("userspace/programs")
-val userspacePackageRoot = layout.projectDirectory.dir("userspace/packages")
-val generatedUserspaceRoot = layout.buildDirectory.dir("generated/userspace")
+val flxInputRootProperty = providers.gradleProperty("kurtos.root")
+val defaultFlxInputRoot = layout.buildDirectory.dir("empty-root")
+val flxInputRoot = flxInputRootProperty
+    .map { file(it) }
+    .orElse(defaultFlxInputRoot.map { it.asFile })
 val flxStagingRoot = layout.buildDirectory.dir("flx-root")
 val flxImage = layout.buildDirectory.file("flx.img")
 val flxReservedObjectRecords = 1024
 val flxWritableSlackBytes = 1024 * 1024
 
-val zeroBuilder = project(":zero").layout.buildDirectory.file("bin/native/debugExecutable/zero.kexe")
-val compileSpeziAppTasks = userspaceProgramsRoot.asFile.listFiles()
-    ?.filter { it.isDirectory && it.resolve("main.spz").isFile }
-    ?.sortedBy { it.name }
-    .orEmpty()
-    .map { appDir ->
-        val appName = appDir.name
-        tasks.register<Exec>("compileSpeziApp${appName.replaceFirstChar { it.uppercase() }}") {
-            group = "kurtos"
-            description = "Compile userspace/$appName to KurtOS bytecode"
-            dependsOn(":zero:linkDebugExecutableNative")
-
-            val source = appDir.resolve("main.spz")
-            val manifest = appDir.resolve("zero.toml")
-            val output = generatedUserspaceRoot.map { it.file("bin/$appName.app") }
-
-            inputs.file(source)
-            inputs.file(manifest)
-            inputs.dir(userspacePackageRoot)
-            outputs.file(output)
-
-            doFirst {
-                output.get().asFile.parentFile.mkdirs()
-            }
-
-            executable = zeroBuilder.get().asFile.absolutePath
-            args("build", "--manifest", manifest.absolutePath, "--output", output.get().asFile.absolutePath)
-            environment("ZERO_GIT_OVERRIDE_LIBKURT", layout.projectDirectory.dir("userspace/packages/libkurt").asFile.absolutePath)
-            environment("ZERO_GIT_OVERRIDE_KURT", layout.projectDirectory.dir("targets/kurt").asFile.absolutePath)
-            environment("ZERO_NO_LOCK", "1")
-        }
+val prepareEmptyFlxRoot by tasks.registering {
+    outputs.dir(defaultFlxInputRoot)
+    doLast {
+        defaultFlxInputRoot.get().asFile.mkdirs()
     }
-
-val compileSpeziApps by tasks.registering {
-    group = "kurtos"
-    description = "Compile all Spezi userspace applications"
-    dependsOn(compileSpeziAppTasks)
 }
 
 data class FlxBuildObject(
@@ -101,24 +70,25 @@ val buildFlxImage by tasks.registering {
     group = "kurtos"
     description = "Build the FLX content-addressed filesystem image at build/flx.img"
 
-    dependsOn(compileSpeziApps)
+    if (!flxInputRootProperty.isPresent) dependsOn(prepareEmptyFlxRoot)
 
-    inputs.dir(flxAssetsRoot).withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.dir(generatedUserspaceRoot).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(flxInputRoot).withPathSensitivity(PathSensitivity.RELATIVE).optional()
     outputs.file(flxImage)
 
     doLast {
+        val sourceRoot = flxInputRoot.get()
         val staging = flxStagingRoot.get().asFile
         delete(staging)
-        copy {
-            from(flxAssetsRoot)
-            into(staging)
+        staging.mkdirs()
+        if (sourceRoot.exists()) {
+            if (!sourceRoot.isDirectory) {
+                throw GradleException("kurtos.root must point to a directory: ${sourceRoot.absolutePath}")
+            }
+            copy {
+                from(sourceRoot)
+                into(staging)
+            }
         }
-        copy {
-            from(generatedUserspaceRoot)
-            into(staging)
-        }
-
         val objects = linkedMapOf<String, FlxBuildObject>()
 
         fun le32(value: Long): ByteArray = byteArrayOf(
@@ -215,7 +185,7 @@ val buildFlxImage by tasks.registering {
         val output = flxImage.get().asFile
         output.parentFile.mkdirs()
         output.writeBytes(image)
-        println("FLX image ready: ${output.absolutePath} (${output.length()} bytes, ${records.size} objects)")
+        println("FLX image ready: ${output.absolutePath} (${output.length()} bytes, ${records.size} objects, root=${sourceRoot.absolutePath})")
     }
 }
 

@@ -1,9 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    if argc() < 1 {
-        println("usage: mkdir <path>")
-        return 2
-    }
-    return fs_mkdir(arg(0))
-}

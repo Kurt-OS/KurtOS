@@ -1,9 +1,0 @@
-import libkurt
-
-fn main() -> i32 {
-    putc(27)
-    print("[2J")
-    putc(27)
-    print("[H")
-    return 0
-}

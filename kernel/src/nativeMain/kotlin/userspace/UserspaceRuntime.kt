@@ -14,22 +14,17 @@ import process.ProcessManager
 import shell.CommandRegistry
 
 object UserspaceRuntime {
-    private val standardApps = listOf(
-        "shell", "cat", "clear", "cp", "echo", "edit", "ls", "mem",
-        "mkdir", "mkf", "mv", "pwd", "reboot", "rm", "shutdown", "snake",
-    )
-
     fun install(registry: CommandRegistry, deviceTree: DeviceTree?) {
         registry.register("help", "show this message") {
             registry.printHelp()
         }
-        registry.register("apps", "list FLX userspace applications") {
+        registry.register("apps", "list FLX programs") {
             listApps(deviceTree)
         }
         registry.register("ps", "show process tree") {
             ProcessManager.printTree()
         }
-        registry.register("run", "run a userspace application") { args ->
+        registry.register("run", "run a FLX program") { args ->
             val name = args.firstOrNull()
             if (name == null) {
                 UART.println("usage: run <app> [args...]")
@@ -37,8 +32,8 @@ object UserspaceRuntime {
                 run(deviceTree, name, args.drop(1))
             }
         }
-        standardApps.forEach { app ->
-            registry.register(app, "userspace application") { args ->
+        discoverApps(deviceTree).forEach { app ->
+            registry.register(app, "FLX program") { args ->
                 run(deviceTree, app, args)
             }
         }
@@ -88,17 +83,22 @@ object UserspaceRuntime {
     }
 
     private fun listApps(deviceTree: DeviceTree?) {
+        discoverApps(deviceTree).forEach { UART.println(it) }
+    }
+
+    private fun discoverApps(deviceTree: DeviceTree?): List<String> {
         if (!FlxService.initialize(deviceTree)) {
             UART.println("FLX: ${FlxService.status()}")
-            return
+            return emptyList()
         }
         val entries = FlxService.list("/bin")
         if (entries == null) {
-            UART.println("No /bin directory found.")
-            return
+            return emptyList()
         }
-        entries.filter { it.kind == FlxEntryKind.File && it.name.endsWith(".app") }
-            .forEach { UART.println(it.name.removeSuffix(".app")) }
+        return entries
+            .filter { it.kind == FlxEntryKind.File && it.name.endsWith(".app") }
+            .map { it.name.removeSuffix(".app") }
+            .sorted()
     }
 }
 

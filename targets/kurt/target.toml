@@ -1,9 +1,0 @@
-[target]
-name = "kurt"
-version = "0.1.0-dev"
-kind = "userspace-bytecode"
-output-extension = "app"
-
-[backend]
-name = "kurt"
-format = "KAPP2"
